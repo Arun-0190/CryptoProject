@@ -21,6 +21,8 @@ import httpx
 from app.config import settings
 from app.models.response_models import FundingRateEntry
 from app.utils.logger import get_logger
+import time
+from app.utils.debug import log_debug
 
 logger = get_logger(__name__)
 
@@ -40,26 +42,32 @@ async def fetch_coindcx_rates(client: httpx.AsyncClient) -> list[FundingRateEntr
     we store 0.0 as a sentinel and mark these entries at the exchange level.
     The engine's None-guard is applied separately via the `_coindcx_no_rate` flag.
     """
+    start_t = time.perf_counter()
+    status_code = "UNKNOWN"
+    errors = None
+    raw: list[dict] = []
+    
     try:
         resp = await client.get(
             URL,
             timeout=settings.HTTP_TIMEOUT_SECONDS,
-            # Send a browser-like user-agent to improve compatibility
             headers={"User-Agent": "Mozilla/5.0 (compatible; ArbRadar/1.0)"},
         )
+        status_code = resp.status_code
         resp.raise_for_status()
-        raw: list[dict] = resp.json()
+        raw = resp.json()
     except httpx.HTTPStatusError as exc:
-        logger.warning(
-            "[%s] HTTP %s – funding rates unavailable (expected, Cloudflare protected)",
-            EXCHANGE, exc.response.status_code,
-        )
-        return []
+        status_code = exc.response.status_code
+        errors = f"HTTP {status_code}: Cloudflare bot protection"
+        logger.warning("[%s] HTTP %s – funding rates unavailable", EXCHANGE, status_code)
     except Exception as exc:
+        errors = f"Request Failed: {exc}"
         logger.warning("[%s] Request failed: %s", EXCHANGE, exc)
-        return []
 
+    latency = (time.perf_counter() - start_t) * 1000
     results: list[FundingRateEntry] = []
+    missing_fields: list[str] = []
+
     for item in raw:
         try:
             symbol: str = item.get("symbol", "")
@@ -76,11 +84,20 @@ async def fetch_coindcx_rates(client: httpx.AsyncClient) -> list[FundingRateEntr
             # without a rate.
 
         except (KeyError, ValueError, TypeError) as exc:
+            missing_fields.append(f"malformed: {exc}")
             logger.debug("[%s] Skipped malformed record: %s | %s", EXCHANGE, item, exc)
 
-    # CoinDCX entries without funding rates cannot participate in arbitrage.
-    # Return empty list to keep the engine clean.
-    # When/if CoinDCX adds public funding rate data, this service can be updated.
+    log_debug(
+        exchange=EXCHANGE,
+        endpoint=URL,
+        latency_ms=latency,
+        status_code=status_code,
+        raw_response=raw,
+        parsed_count=len(results),
+        missing_fields=missing_fields,
+        errors=errors
+    )
+
     if results:
         logger.info("[%s] Fetched %d entries", EXCHANGE, len(results))
     else:

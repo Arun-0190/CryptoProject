@@ -14,6 +14,8 @@ import httpx
 from app.config import settings
 from app.models.response_models import FundingRateEntry
 from app.utils.logger import get_logger
+import time
+from app.utils.debug import log_debug
 
 logger = get_logger(__name__)
 
@@ -62,19 +64,30 @@ def _to_percent(rate: float) -> float:
 
 async def fetch_delta_rates(client: httpx.AsyncClient) -> list[FundingRateEntry]:
     """Fetch and normalise Delta Exchange India USDT perpetual funding rates."""
+    start_t = time.perf_counter()
+    status_code = "UNKNOWN"
+    errors = None
+    payload: dict = {}
+    raw: list[dict] = []
+    
     try:
         resp = await client.get(URL, timeout=settings.HTTP_TIMEOUT_SECONDS)
+        status_code = resp.status_code
         resp.raise_for_status()
         payload = resp.json()
-        raw: list[dict] = payload.get("result", [])
+        raw = payload.get("result", [])
     except httpx.HTTPStatusError as exc:
-        logger.error("[%s] HTTP error %s: %s", EXCHANGE, exc.response.status_code, exc)
-        return []
+        status_code = exc.response.status_code
+        errors = f"HTTP Error {status_code}: {exc}"
+        logger.error("[%s] HTTP error %s: %s", EXCHANGE, status_code, exc)
     except Exception as exc:
+        errors = f"Request Failed: {exc}"
         logger.error("[%s] Request failed: %s", EXCHANGE, exc)
-        return []
 
+    latency = (time.perf_counter() - start_t) * 1000
     results: list[FundingRateEntry] = []
+    missing_fields: list[str] = []
+
     for item in raw:
         try:
             if not _is_crypto_perpetual(item):
@@ -101,7 +114,19 @@ async def fetch_delta_rates(client: httpx.AsyncClient) -> list[FundingRateEntry]
                 )
             )
         except (KeyError, ValueError, TypeError) as exc:
+            missing_fields.append(f"malformed: {exc}")
             logger.warning("[%s] Skipped malformed record: %s | %s", EXCHANGE, item.get("symbol"), exc)
+
+    log_debug(
+        exchange=EXCHANGE,
+        endpoint=URL,
+        latency_ms=latency,
+        status_code=status_code,
+        raw_response=payload,
+        parsed_count=len(results),
+        missing_fields=missing_fields,
+        errors=errors
+    )
 
     logger.info("[%s] Fetched %d crypto perpetuals", EXCHANGE, len(results))
     return results

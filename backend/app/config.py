@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     OKX_FUNDING_URL: str = "https://www.okx.com/api/v5/public/funding-rate"
 
     # Bitget
-    BITGET_FUNDING_URL: str = "https://api.bitget.com/api/mix/v1/market/current-fundRate"
+    BITGET_FUNDING_URL: str = "https://api.bitget.com/api/v2/mix/market/tickers"
 
 
 settings = Settings()
