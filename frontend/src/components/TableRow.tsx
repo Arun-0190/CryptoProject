@@ -1,4 +1,4 @@
-import React, { memo, useState } from 'react';
+import React, { memo, useEffect, useRef, useState } from 'react';
 import type { ArbitrageOpportunity } from '../types/arbitrage';
 import { ConfidenceBadge, RiskBadge } from './StatusBadge';
 import {
@@ -12,6 +12,41 @@ import {
   getBaseToken,
 } from '../utils/format';
 
+/**
+ * Flashes green when `value` changes, then smoothly fades back.
+ * Conveys "this number just updated" without full row re-mount.
+ */
+const AnimatedValue: React.FC<{
+  value: string;
+  baseColor?: string;
+  style?: React.CSSProperties;
+}> = ({ value, baseColor = 'inherit', style }) => {
+  const [highlight, setHighlight] = useState(false);
+  const prevRef = useRef(value);
+
+  useEffect(() => {
+    if (prevRef.current !== value) {
+      prevRef.current = value;
+      setHighlight(true);
+      const t = setTimeout(() => setHighlight(false), 500);
+      return () => clearTimeout(t);
+    }
+  }, [value]);
+
+  return (
+    <span
+      style={{
+        color: highlight ? '#0ECB81' : baseColor,
+        transition: 'color 0.5s ease',
+        fontVariantNumeric: 'tabular-nums',
+        ...style,
+      }}
+    >
+      {value}
+    </span>
+  );
+};
+
 interface TableRowProps {
   opp: ArbitrageOpportunity;
   rank: number;
@@ -24,6 +59,9 @@ const EXCHANGE_COLORS: Record<string, string> = {
   Bybit: '#F7A600',
   OKX: '#1E90FF',
   Bitget: '#00C5C5',
+  'Delta Exchange India': '#7C3AED',
+  CoinSwitch: '#E63946',
+  CoinDCX: '#2563EB',
 };
 
 const ExchangeDot: React.FC<{ name: string }> = ({ name }) => (
@@ -138,42 +176,38 @@ const TableRow: React.FC<TableRowProps> = memo(({ opp, rank, positionSize, isTop
 
       {/* Spread */}
       <td style={{ padding: '10px 16px' }}>
-        <span
-          style={{
-            color: 'var(--green)',
-            fontWeight: 700,
-            fontSize: 13,
-          }}
-        >
-          {formatRate(opp.funding_diff)}
-        </span>
+        <AnimatedValue
+          value={formatRate(opp.funding_diff)}
+          baseColor="var(--green)"
+          style={{ fontWeight: 700, fontSize: 13 }}
+        />
       </td>
 
       {/* APR */}
       <td style={{ padding: '10px 16px' }}>
-        <span
-          style={{
-            color: opp.apr > 100 ? '#0ECB81' : opp.apr > 20 ? '#F0B90B' : 'var(--text-primary)',
-            fontWeight: 600,
-            fontSize: 13,
-          }}
-        >
-          {formatAPR(opp.apr)}
-        </span>
+        <AnimatedValue
+          value={formatAPR(opp.apr)}
+          baseColor={opp.apr > 100 ? '#0ECB81' : opp.apr > 20 ? '#F0B90B' : 'var(--text-primary)'}
+          style={{ fontWeight: 600, fontSize: 13 }}
+        />
       </td>
 
       {/* PnL per period */}
       <td style={{ padding: '10px 16px' }}>
-        <span style={{ color: 'var(--green)', fontWeight: 500, fontSize: 13 }}>
-          +${pnl.toFixed(2)}
-        </span>
+        <AnimatedValue
+          value={`+$${pnl.toFixed(2)}`}
+          baseColor="var(--green)"
+          style={{ fontWeight: 500, fontSize: 13 }}
+        />
       </td>
 
       {/* Annual Revenue */}
       <td style={{ padding: '10px 16px' }}>
-        <span style={{ color: 'var(--green)', fontWeight: 500, fontSize: 13 }}>
-          +${annualRevenue.toFixed(0)}
-        </span>
+        <AnimatedValue
+          value={`+$${annualRevenue.toFixed(0)}`}
+          baseColor="var(--green)"
+          style={{ fontWeight: 500, fontSize: 13 }}
+        />
       </td>
 
       {/* OI */}

@@ -29,6 +29,8 @@ from app.models.response_models import ArbitrageOpportunity, FundingRateEntry
 from app.services.binance import fetch_binance_rates
 from app.services.bitget import fetch_bitget_rates
 from app.services.bybit import fetch_bybit_rates
+from app.services.coindcx import fetch_coindcx_rates
+from app.services.delta import fetch_delta_rates
 from app.services.okx import fetch_okx_rates
 from app.utils.cache import cache
 from app.utils.logger import get_logger
@@ -46,14 +48,17 @@ async def _fetch_all_rates() -> list[FundingRateEntry]:
             fetch_bybit_rates(client),
             fetch_okx_rates(client),
             fetch_bitget_rates(client),
+            fetch_delta_rates(client),
+            fetch_coindcx_rates(client),
             return_exceptions=True,
         )
 
+    exchange_names = ["Binance", "Bybit", "OKX", "Bitget", "Delta Exchange India", "CoinDCX"]
     combined: list[FundingRateEntry] = []
     for i, result in enumerate(results):
-        exchange_names = ["Binance", "Bybit", "OKX", "Bitget"]
+        name = exchange_names[i] if i < len(exchange_names) else f"Exchange[{i}]"
         if isinstance(result, Exception):
-            logger.error("[Arbitrage] %s fetch raised exception: %s", exchange_names[i], result)
+            logger.error("[Arbitrage] %s fetch raised exception: %s", name, result)
         else:
             combined.extend(result)
 
@@ -70,8 +75,16 @@ def _compute_opportunities(
     opportunities: list[ArbitrageOpportunity] = []
 
     for symbol, exchange_entries in grouped.items():
-        # Remove duplicates by exchange, need at least 2 exchanges
+        # Remove duplicates by exchange
         deduped = deduplicate_by_exchange(exchange_entries)
+
+        # --- Guard: skip entries where funding_rate is None (e.g. CoinDCX) ---
+        # FundingRateEntry.funding_rate is typed float, so None can't be stored
+        # directly — all services that can't supply a rate return [] instead.
+        # This guard is a belt-and-suspenders check.
+        deduped = [e for e in deduped if e.funding_rate is not None]
+
+        # Need at least 2 exchanges with valid rates to form a pair
         if len(deduped) < 2:
             continue
 

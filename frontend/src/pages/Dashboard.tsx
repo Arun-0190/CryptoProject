@@ -3,7 +3,7 @@ import { useStore } from '../store/useStore';
 import Filters from '../components/Filters';
 import ArbitrageTable from '../components/ArbitrageTable';
 
-const REFRESH_INTERVAL_MS = 10_000;
+const REFRESH_INTERVAL_MS = 60_000; // 60 second live refresh
 
 const Dashboard: React.FC = () => {
   const { fetchData, opportunities, loading, lastUpdated, filters } = useStore();
@@ -14,7 +14,7 @@ const Dashboard: React.FC = () => {
     fetchData();
   }, [filters.exchange, filters.minSpread, filters.sortBy, filters.sortDir, filters.symbol]);
 
-  // Auto-refresh every 10 seconds
+  // Auto-refresh every 60 seconds (no loading spinner on background refresh)
   useEffect(() => {
     intervalRef.current = setInterval(() => {
       fetchData();

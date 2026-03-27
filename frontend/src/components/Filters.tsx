@@ -2,7 +2,14 @@ import React from 'react';
 import { useStore } from '../store/useStore';
 import type { SortField } from '../types/arbitrage';
 
-const EXCHANGES = ['All', 'Binance', 'Bybit', 'OKX', 'Bitget'];
+// Display labels and the corresponding store filter value
+const EXCHANGES: { label: string; value: string }[] = [
+  { label: 'All',          value: 'All' },
+  { label: 'Binance',      value: 'Binance' },
+  { label: 'Delta',        value: 'Delta Exchange India' },
+  { label: 'CoinSwitch',   value: 'CoinSwitch' },
+  { label: 'CoinDCX',      value: 'CoinDCX' },
+];
 
 const Filters: React.FC = () => {
   const { filters, setFilter, positionSize, setPositionSize, resetFilters } = useStore();
@@ -44,13 +51,13 @@ const Filters: React.FC = () => {
           <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginRight: 4, flexShrink: 0 }}>
             Exchange:
           </span>
-          {EXCHANGES.map((ex) => (
+          {EXCHANGES.map(({ label, value }) => (
             <button
-              key={ex}
-              className={`filter-btn ${filters.exchange === ex ? 'active' : ''}`}
-              onClick={() => setFilter('exchange', ex)}
+              key={value}
+              className={`filter-btn ${filters.exchange === value ? 'active' : ''}`}
+              onClick={() => setFilter('exchange', value)}
             >
-              {ex}
+              {label}
             </button>
           ))}
 

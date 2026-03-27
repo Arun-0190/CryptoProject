@@ -157,6 +157,8 @@ async def raw_funding_rates(
     from app.services.bybit import fetch_bybit_rates
     from app.services.okx import fetch_okx_rates
     from app.services.bitget import fetch_bitget_rates
+    from app.services.delta import fetch_delta_rates
+    from app.services.coindcx import fetch_coindcx_rates
     import asyncio
 
     async with _httpx.AsyncClient() as client:
@@ -165,6 +167,8 @@ async def raw_funding_rates(
             fetch_bybit_rates(client),
             fetch_okx_rates(client),
             fetch_bitget_rates(client),
+            fetch_delta_rates(client),
+            fetch_coindcx_rates(client),
             return_exceptions=True,
         )
 
